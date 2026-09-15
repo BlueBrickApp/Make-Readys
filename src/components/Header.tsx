@@ -17,20 +17,23 @@ import {
   Sparkles,
   QrCode,
   Smartphone,
-  Users
+  Users,
+  Truck
 } from 'lucide-react';
-import { TechnicianUser, SupervisorNotification, SyncQueueItem } from '../types';
+import { TechnicianUser, SupervisorNotification, SyncQueueItem, Vendor } from '../types';
 import { offlineDB } from '../services/db';
 import { soundManager } from '../services/audio';
 
 interface HeaderProps {
   currentUser: TechnicianUser;
   technicians: TechnicianUser[];
+  vendors?: Vendor[];
   onUserChange: (user: TechnicianUser) => void;
   onOpenNotifications: () => void;
   onOpenNewUnit: () => void;
   onOpenShare?: () => void;
   onOpenManageTeam?: () => void;
+  onOpenManageVendors?: () => void;
   notifications: SupervisorNotification[];
   syncQueue: SyncQueueItem[];
   onSyncCompleted?: () => void;
@@ -39,11 +42,13 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentUser,
   technicians,
+  vendors = [],
   onUserChange,
   onOpenNotifications,
   onOpenNewUnit,
   onOpenShare,
   onOpenManageTeam,
+  onOpenManageVendors,
   notifications,
   syncQueue,
   onSyncCompleted
@@ -247,6 +252,22 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline">TEAM</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-[#00FFB4] font-bold border border-slate-700">
                 {technicians.length}
+              </span>
+            </button>
+          )}
+
+          {/* Vendors & Subcontractors Management Menu Button */}
+          {onOpenManageVendors && (
+            <button
+              id="header-manage-vendors-btn"
+              onClick={() => { soundManager.playClick(); onOpenManageVendors(); }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-900 border border-slate-700 hover:border-[#00FFB4] text-slate-200 hover:text-[#00FFB4] font-mono text-xs transition-all shadow-sm"
+              title="Manage Turnover Vendors & Contractors (Add / Remove)"
+            >
+              <Truck className="w-3.5 h-3.5 text-[#00FFB4]" />
+              <span className="hidden sm:inline">VENDORS</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-[#00FFB4] font-bold border border-slate-700">
+                {vendors.length}
               </span>
             </button>
           )}

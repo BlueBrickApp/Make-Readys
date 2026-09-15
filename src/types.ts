@@ -139,6 +139,36 @@ export interface TechnicianUser {
   phone: string;
 }
 
+export type VendorStatus = 'Active' | 'Preferred' | 'On-Call';
+
+export interface Vendor {
+  id: string;
+  name: string;
+  trade_category: string;
+  contact_person: string;
+  phone: string;
+  email?: string;
+  status: VendorStatus;
+  notes?: string;
+  rating?: number;
+  created_at?: number;
+}
+
+export const VENDOR_SPECIALTY_PRESETS = [
+  'Flooring & Carpets',
+  'Painting & Drywall',
+  'Deep Cleaning & Make-Ready',
+  'HVAC & Climate Control',
+  'Plumbing & Water Heaters',
+  'Electrical & Fixtures',
+  'Appliance Repair & Parts',
+  'Countertops & Resurfacing',
+  'Trash Out & Junk Removal',
+  'Locksmith & Re-keying',
+  'Pest Control',
+  'General Contractor / Turnkey'
+];
+
 export interface SyncQueueItem {
   id: string;
   timestamp: number;

@@ -12,6 +12,7 @@ import {
   SupervisorNotification, 
   SyncQueueItem, 
   TechnicianUser,
+  Vendor,
   TradeCategory,
   TRADE_CATEGORIES,
   TurnoverStage
@@ -45,7 +46,7 @@ function sanitizeForFirestore(obj: any): any {
 }
 
 const DB_NAME = 'unit_turnover_tracker_db';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const DEFAULT_TECHNICIANS: TechnicianUser[] = [
   {
@@ -87,6 +88,81 @@ export const DEFAULT_TECHNICIANS: TechnicianUser[] = [
 ];
 
 export let ACTIVE_TECHNICIANS: TechnicianUser[] = [...DEFAULT_TECHNICIANS];
+
+export const DEFAULT_VENDORS: Vendor[] = [
+  {
+    id: 'vendor-1',
+    name: 'Apex Flooring & Carpets',
+    trade_category: 'Flooring & Carpets',
+    contact_person: 'Marcus Vance',
+    phone: '(555) 782-9011',
+    email: 'marcus@apexflooringpro.com',
+    status: 'Preferred',
+    notes: '24-48h turnaround for turnover LVP and carpet replacement.'
+  },
+  {
+    id: 'vendor-2',
+    name: 'ProTouch Paint & Drywall',
+    trade_category: 'Painting & Drywall',
+    contact_person: 'Sofia Morales',
+    phone: '(555) 641-2389',
+    email: 'orders@protouchpainting.com',
+    status: 'Preferred',
+    notes: 'Full unit sprays, drywall patching, baseboard trim.'
+  },
+  {
+    id: 'vendor-3',
+    name: 'SparkleClean Make-Ready Services',
+    trade_category: 'Deep Cleaning & Make-Ready',
+    contact_person: 'Brenda Kelly',
+    phone: '(555) 912-4040',
+    email: 'dispatch@sparklecleanops.com',
+    status: 'Active',
+    notes: 'Includes oven, fridge deep-clean and window tracks.'
+  },
+  {
+    id: 'vendor-4',
+    name: 'Summit HVAC & Climate Solutions',
+    trade_category: 'HVAC & Climate Control',
+    contact_person: 'Derek Armstrong',
+    phone: '(555) 438-7712',
+    email: 'service@summithvacpro.com',
+    status: 'Active',
+    notes: 'EPA certified. Compressor replacement & Freon recharge.'
+  },
+  {
+    id: 'vendor-5',
+    name: 'RapidFlow Plumbing Contractors',
+    trade_category: 'Plumbing & Water Heaters',
+    contact_person: 'Jason Miller',
+    phone: '(555) 823-1190',
+    email: 'jason@rapidflowplumbing.net',
+    status: 'On-Call',
+    notes: 'Water heater emergency changeouts and sewer main snaking.'
+  },
+  {
+    id: 'vendor-6',
+    name: 'VoltCraft Electrical Services',
+    trade_category: 'Electrical & Fixtures',
+    contact_person: 'Elena Chen',
+    phone: '(555) 329-8841',
+    email: 'info@voltcraftops.com',
+    status: 'Active',
+    notes: 'Panel upgrades, GFCI recertification and exterior lights.'
+  },
+  {
+    id: 'vendor-7',
+    name: 'All-Star Appliance Repair & Parts',
+    trade_category: 'Appliance Repair & Parts',
+    contact_person: 'Tony Ramos',
+    phone: '(555) 519-6032',
+    email: 'tony@allstarappliance.com',
+    status: 'Preferred',
+    notes: 'OEM GE/Whirlpool/Frigidaire parts in stock.'
+  }
+];
+
+export let ACTIVE_VENDORS: Vendor[] = [...DEFAULT_VENDORS];
 
 // Initial Seed Tasks for 6 Trade Categories with fixed sequence
 export const DEFAULT_TRADE_TASKS: Record<TradeCategory, { name: string; description: string }[]> = {
@@ -264,6 +340,7 @@ class OfflineDB {
           if (!db.objectStoreNames.contains('notifications')) db.createObjectStore('notifications', { keyPath: 'id' });
           if (!db.objectStoreNames.contains('sync_queue')) db.createObjectStore('sync_queue', { keyPath: 'id' });
           if (!db.objectStoreNames.contains('technicians')) db.createObjectStore('technicians', { keyPath: 'id' });
+          if (!db.objectStoreNames.contains('vendors')) db.createObjectStore('vendors', { keyPath: 'id' });
         };
         req.onsuccess = async (e) => {
           this.db = (e.target as IDBOpenDBRequest).result;
@@ -447,6 +524,53 @@ class OfflineDB {
         console.warn('Firestore technicians sync:', error.message);
       });
       this.firestoreUnsubscribers.push(unsubTechs);
+
+      // 7. Real-time Vendors & Contractors listener
+      const unsubVendors = onSnapshot(collection(firestoreDb, 'vendors'), async (snapshot) => {
+        if (snapshot.empty && !this.simulateOffline) {
+          // If Firestore vendors is empty, seed defaults
+          for (const v of DEFAULT_VENDORS) {
+            await this.putInStore('vendors', v);
+            await this.pushToFirestore('vendors', v.id, v);
+          }
+          ACTIVE_VENDORS = [...DEFAULT_VENDORS];
+          localStorage.setItem('utt_vendors', JSON.stringify(DEFAULT_VENDORS));
+          this.notifyListeners();
+          return;
+        }
+
+        // Handle deletions from Firestore across all devices
+        for (const change of snapshot.docChanges()) {
+          if (change.type === 'removed') {
+            await this.deleteFromStore('vendors', change.doc.id);
+          }
+        }
+
+        const list: Vendor[] = [];
+        for (const docSnap of snapshot.docs) {
+          list.push(docSnap.data() as Vendor);
+        }
+        if (list.length > 0) {
+          ACTIVE_VENDORS = list;
+          localStorage.setItem('utt_vendors', JSON.stringify(list));
+          
+          // Reconcile IndexedDB store: delete any vendor that is no longer in Firestore
+          const allStored = await this.getAllFromStore<Vendor>('vendors');
+          for (const s of allStored) {
+            if (!list.some(l => l.id === s.id)) {
+              await this.deleteFromStore('vendors', s.id);
+            }
+          }
+
+          for (const v of list) {
+            await this.putInStore('vendors', v);
+          }
+          this.notifyListeners();
+        }
+      }, (error) => {
+        console.warn('Firestore vendors sync:', error.message);
+      });
+      this.firestoreUnsubscribers.push(unsubVendors);
 
     } catch (err) {
       console.warn('initFirestoreSync warning:', err);
@@ -1596,6 +1720,42 @@ class OfflineDB {
     await this.deleteFromFirestore('technicians', id);
     ACTIVE_TECHNICIANS = ACTIVE_TECHNICIANS.filter(t => t.id !== id);
     localStorage.setItem('utt_technicians', JSON.stringify(ACTIVE_TECHNICIANS));
+    this.notifyListeners();
+  }
+
+  // Vendors & Turnaround Contractors Management
+  public async getVendors(): Promise<Vendor[]> {
+    const stored = await this.getAllFromStore<Vendor>('vendors');
+    if (stored && stored.length > 0) {
+      ACTIVE_VENDORS = stored;
+      return stored;
+    }
+    const local = localStorage.getItem('utt_vendors');
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          ACTIVE_VENDORS = parsed;
+          return parsed;
+        }
+      } catch {}
+    }
+    return ACTIVE_VENDORS;
+  }
+
+  public async addVendor(vendor: Vendor): Promise<void> {
+    await this.putInStore('vendors', vendor);
+    await this.pushToFirestore('vendors', vendor.id, vendor);
+    ACTIVE_VENDORS = [...ACTIVE_VENDORS.filter(v => v.id !== vendor.id), vendor];
+    localStorage.setItem('utt_vendors', JSON.stringify(ACTIVE_VENDORS));
+    this.notifyListeners();
+  }
+
+  public async deleteVendor(id: string): Promise<void> {
+    await this.deleteFromStore('vendors', id);
+    await this.deleteFromFirestore('vendors', id);
+    ACTIVE_VENDORS = ACTIVE_VENDORS.filter(v => v.id !== id);
+    localStorage.setItem('utt_vendors', JSON.stringify(ACTIVE_VENDORS));
     this.notifyListeners();
   }
 

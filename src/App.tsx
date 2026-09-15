@@ -17,6 +17,7 @@ import { ConflictModal } from './components/ConflictModal';
 import { NewUnitModal } from './components/NewUnitModal';
 import { ShareTeamModal } from './components/ShareTeamModal';
 import { ManageTeamModal } from './components/ManageTeamModal';
+import { ManageVendorsModal } from './components/ManageVendorsModal';
 
 import { 
   Unit, 
@@ -27,10 +28,11 @@ import {
   SupervisorNotification, 
   SyncQueueItem, 
   TechnicianUser, 
+  Vendor,
   TradeCategory, 
   TurnoverStage 
 } from './types';
-import { offlineDB, ACTIVE_TECHNICIANS } from './services/db';
+import { offlineDB, ACTIVE_TECHNICIANS, ACTIVE_VENDORS } from './services/db';
 
 export default function App() {
   // Active User Profile (Defaults to Field Tech Carlos Mendez)
@@ -65,6 +67,8 @@ export default function App() {
   const [isNewUnitModalOpen, setIsNewUnitModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isManageTeamModalOpen, setIsManageTeamModalOpen] = useState(false);
+  const [isManageVendorsModalOpen, setIsManageVendorsModalOpen] = useState(false);
+  const [vendors, setVendors] = useState<Vendor[]>(ACTIVE_VENDORS);
   const [conflictData, setConflictData] = useState<{
     originalTask: Task;
     remoteUpdate: Task;
@@ -74,13 +78,14 @@ export default function App() {
   // Initialize DB and load initial records
   const loadData = async () => {
     try {
-      const [u, w, l, n, q, techs] = await Promise.all([
+      const [u, w, l, n, q, techs, vends] = await Promise.all([
         offlineDB.getUnits(),
         offlineDB.getWorkOrders(),
         offlineDB.getFieldLogs(),
         offlineDB.getNotifications(),
         offlineDB.getSyncQueue(),
-        offlineDB.getTechnicians()
+        offlineDB.getTechnicians(),
+        offlineDB.getVendors()
       ]);
 
       // Load all checklists for overall progress across units
@@ -98,6 +103,9 @@ export default function App() {
       setSyncQueue(q);
       if (techs && techs.length > 0) {
         setTechnicians(techs);
+      }
+      if (vends && vends.length > 0) {
+        setVendors(vends);
       }
 
       // If selected unit not valid, default to first unit or null
@@ -252,21 +260,37 @@ export default function App() {
     }
   };
 
+  // Handler: Add vendor to directory
+  const handleAddVendor = async (vendor: Vendor) => {
+    await offlineDB.addVendor(vendor);
+    const updated = await offlineDB.getVendors();
+    setVendors(updated);
+  };
+
+  // Handler: Delete vendor from directory
+  const handleDeleteVendor = async (id: string) => {
+    await offlineDB.deleteVendor(id);
+    const updated = await offlineDB.getVendors();
+    setVendors(updated);
+  };
+
   const openWorkOrdersCount = workOrders.filter(w => w.status !== 'Resolved').length;
   const readyUnitsCount = units.filter(u => u.current_status === 'Ready').length;
 
   return (
     <div className="min-h-screen bg-[#080C14] text-slate-100 flex flex-col font-sans selection:bg-[#00FFB4] selection:text-black">
       
-      {/* Top Header with Offline Indicator, Dead-Zone Simulator, Role Switcher and Team Management */}
+      {/* Top Header with Offline Indicator, Dead-Zone Simulator, Role Switcher, Team & Vendors */}
       <Header
         currentUser={currentUser}
         technicians={technicians}
+        vendors={vendors}
         onUserChange={setCurrentUser}
         onOpenNotifications={() => setIsNotificationModalOpen(true)}
         onOpenNewUnit={() => setIsNewUnitModalOpen(true)}
         onOpenShare={() => setIsShareModalOpen(true)}
         onOpenManageTeam={() => setIsManageTeamModalOpen(true)}
+        onOpenManageVendors={() => setIsManageVendorsModalOpen(true)}
         notifications={notifications}
         syncQueue={syncQueue}
         onSyncCompleted={loadData}
@@ -417,6 +441,14 @@ export default function App() {
         currentUser={currentUser}
         onAddTechnician={handleAddTechnician}
         onDeleteTechnician={handleDeleteTechnician}
+      />
+
+      <ManageVendorsModal
+        isOpen={isManageVendorsModalOpen}
+        onClose={() => setIsManageVendorsModalOpen(false)}
+        vendors={vendors}
+        onAddVendor={handleAddVendor}
+        onDeleteVendor={handleDeleteVendor}
       />
 
       {/* Footer System Status Bar */}
