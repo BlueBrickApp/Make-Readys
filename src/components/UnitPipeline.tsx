@@ -369,7 +369,7 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
                                         <Lock className="w-3 h-3 text-amber-400 shrink-0" />
                                         <input
                                           type="password"
-                                          placeholder="Supervisor PIN (1234)"
+                                          placeholder="Supervisor Password"
                                           value={deletePin}
                                           autoFocus
                                           onChange={(e) => {

@@ -12,7 +12,9 @@ import {
   EyeOff,
   KeyRound,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  Key,
+  Shield
 } from 'lucide-react';
 import { Unit, TechnicianUser } from '../types';
 import { ACTIVE_TECHNICIANS } from '../services/db';
@@ -51,21 +53,76 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Change Password Modal/Mode State
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [currentPwdForChange, setCurrentPwdForChange] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [changePwdSuccess, setChangePwdSuccess] = useState<string | null>(null);
+  const [changePwdError, setChangePwdError] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const isCurrentSupervisor = currentUser.role === 'Maintenance Supervisor';
 
   const checkSupervisorPassword = (pwd: string): boolean => {
-    const trimmed = pwd.trim().toLowerCase();
-    const storedPin = (localStorage.getItem('utt_supervisor_pin') || '').trim().toLowerCase();
-    const validPasswords = ['1234', 'supervisor', 'supervisor123', 'super123', 'admin'];
+    const trimmed = pwd.trim();
+    if (!trimmed) return false;
+    const storedPin = (localStorage.getItem('utt_supervisor_pin') || '').trim();
     if (storedPin) {
-      validPasswords.push(storedPin);
+      return trimmed === storedPin || trimmed.toLowerCase() === storedPin.toLowerCase();
     }
-    return validPasswords.includes(trimmed);
+    // Default fallback initial password
+    return trimmed === '1234' || trimmed.toLowerCase() === 'supervisor123' || trimmed.toLowerCase() === 'admin';
   };
 
   const isPasswordValid = checkSupervisorPassword(supervisorPassword);
+
+  const handleSaveNewPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setChangePwdError(null);
+    setChangePwdSuccess(null);
+
+    // Validate current password first
+    if (!checkSupervisorPassword(currentPwdForChange)) {
+      soundManager.playAlert();
+      setChangePwdError('Current password is incorrect.');
+      return;
+    }
+
+    if (!newPassword.trim()) {
+      soundManager.playAlert();
+      setChangePwdError('New password cannot be empty.');
+      return;
+    }
+
+    if (newPassword.trim().length < 4) {
+      soundManager.playAlert();
+      setChangePwdError('New password must be at least 4 characters.');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      soundManager.playAlert();
+      setChangePwdError('New passwords do not match.');
+      return;
+    }
+
+    // Save new supervisor password in localStorage
+    localStorage.setItem('utt_supervisor_pin', newPassword.trim());
+    soundManager.playSyncSuccess();
+    setChangePwdSuccess('Password updated successfully!');
+    setSupervisorPassword(newPassword.trim());
+    setCurrentPwdForChange('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setTimeout(() => {
+      setIsChangingPassword(false);
+      setChangePwdSuccess(null);
+    }, 1200);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -260,22 +317,36 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
           </div>
 
           {/* Supervisor Security Password / Authorization Box */}
-          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-amber-500/30 space-y-2.5">
+          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-700/80 hover:border-slate-600 space-y-2.5 transition-colors">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-amber-300 font-mono text-xs font-bold">
-                <Lock className="w-3.5 h-3.5 text-amber-400" />
-                <span>SUPERVISOR SECURITY PASSWORD *</span>
+              <div className="flex items-center gap-1.5 text-slate-200 font-mono text-xs font-semibold">
+                <Lock className="w-3.5 h-3.5 text-[#00FFB4]" />
+                <span>SUPERVISOR PASSWORD *</span>
               </div>
-              {isPasswordValid ? (
-                <span className="flex items-center gap-1 text-[10px] font-mono text-[#00FFB4] bg-[#00FFB4]/10 px-2 py-0.5 rounded border border-[#00FFB4]/30">
-                  <ShieldCheck className="w-3 h-3" />
-                  <span>AUTHORIZED</span>
-                </span>
-              ) : (
-                <span className="text-[10px] font-mono text-slate-400">
-                  PIN: <code className="text-amber-300">1234</code>
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {isPasswordValid && (
+                  <span className="flex items-center gap-1 text-[10px] font-mono text-[#00FFB4] bg-[#00FFB4]/10 px-2 py-0.5 rounded border border-[#00FFB4]/30 animate-fadeIn">
+                    <ShieldCheck className="w-3 h-3" />
+                    <span>AUTHORIZED</span>
+                  </span>
+                )}
+                <button
+                  id="open-change-password-modal-btn"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    soundManager.playClick();
+                    setIsChangingPassword(true);
+                    setChangePwdError(null);
+                    setChangePwdSuccess(null);
+                  }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono text-slate-400 hover:text-[#00FFB4] hover:bg-slate-800/80 border border-slate-700/70 hover:border-[#00FFB4]/40 transition-all"
+                  title="Change supervisor password"
+                >
+                  <Key className="w-3 h-3" />
+                  <span>Change Password</span>
+                </button>
+              </div>
             </div>
 
             <div className="relative">
@@ -291,35 +362,22 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
                   setSupervisorPassword(e.target.value);
                   if (authError) setAuthError(null);
                 }}
-                placeholder="Enter Supervisor password (e.g. 1234)"
-                className={`w-full pl-9 pr-20 py-2 rounded-lg bg-slate-900 border text-xs font-mono transition-colors focus:outline-none ${
+                placeholder="Enter Supervisor password"
+                className={`w-full pl-9 pr-10 py-2.5 rounded-lg bg-slate-900 border text-xs font-mono transition-colors focus:outline-none ${
                   isPasswordValid 
                     ? 'border-[#00FFB4] text-[#00FFB4]' 
-                    : 'border-slate-700 text-slate-100 focus:border-amber-400'
+                    : 'border-slate-700 text-slate-100 focus:border-[#00FFB4]'
                 }`}
               />
-              <div className="absolute inset-y-0 right-0 pr-2 flex items-center gap-1.5">
+              <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center">
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="p-1 text-slate-400 hover:text-white rounded"
+                  className="p-1 text-slate-400 hover:text-white rounded transition-colors"
                   title={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
-                {!isPasswordValid && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSupervisorPassword('1234');
-                      if (authError) setAuthError(null);
-                    }}
-                    className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-800 hover:bg-slate-700 text-amber-300 rounded border border-slate-700"
-                    title="Fill default supervisor password (1234)"
-                  >
-                    1234
-                  </button>
-                )}
               </div>
             </div>
 
@@ -335,7 +393,7 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
               <span>Required to confirm intake authorization</span>
               {isCurrentSupervisor && (
                 <span className="text-[#00FFB4]">
-                  Active Operator: {currentUser.name} (Supervisor)
+                  Active: {currentUser.name} (Supervisor)
                 </span>
               )}
             </div>
@@ -375,6 +433,124 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
           </div>
 
         </form>
+
+        {/* Change Password Dialog Overlay */}
+        {isChangingPassword && (
+          <div 
+            id="change-password-modal-overlay" 
+            className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
+          >
+            <div className="w-full max-w-sm bg-[#0A0E17] border border-slate-700 rounded-xl p-5 shadow-2xl space-y-4 animate-scaleUp">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2 text-white font-['Chakra_Petch'] font-bold text-sm">
+                  <Key className="w-4 h-4 text-[#00FFB4]" />
+                  <span>CHANGE SUPERVISOR PASSWORD</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundManager.playClick();
+                    setIsChangingPassword(false);
+                    setChangePwdError(null);
+                    setChangePwdSuccess(null);
+                  }}
+                  className="p-1 rounded text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveNewPassword} className="space-y-3 font-sans text-xs">
+                {changePwdError && (
+                  <div className="flex items-center gap-1.5 p-2 rounded bg-red-950/60 border border-red-500/40 text-red-300 text-[11px] font-mono">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+                    <span>{changePwdError}</span>
+                  </div>
+                )}
+
+                {changePwdSuccess && (
+                  <div className="flex items-center gap-1.5 p-2 rounded bg-[#00FFB4]/15 border border-[#00FFB4]/40 text-[#00FFB4] text-[11px] font-mono">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-[#00FFB4]" />
+                    <span>{changePwdSuccess}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="block text-slate-300 font-mono text-[11px]">Current Password</label>
+                  <input
+                    id="input-current-password"
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    value={currentPwdForChange}
+                    onChange={(e) => setCurrentPwdForChange(e.target.value)}
+                    placeholder="Enter current password"
+                    className="w-full p-2 rounded bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-[#00FFB4]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-slate-300 font-mono text-[11px]">New Password</label>
+                  <input
+                    id="input-new-password"
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 4 chars)"
+                    className="w-full p-2 rounded bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-[#00FFB4]"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-slate-300 font-mono text-[11px]">Confirm New Password</label>
+                  <input
+                    id="input-confirm-new-password"
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="Re-enter new password"
+                    className="w-full p-2 rounded bg-slate-900 border border-slate-700 text-white font-mono text-xs focus:outline-none focus:border-[#00FFB4]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center gap-1.5 text-slate-400 text-[11px] font-mono cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={showNewPassword}
+                      onChange={(e) => setShowNewPassword(e.target.checked)}
+                      className="rounded border-slate-700 bg-slate-900 text-[#00FFB4] focus:ring-0 cursor-pointer"
+                    />
+                    <span>Show password characters</span>
+                  </label>
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundManager.playClick();
+                      setIsChangingPassword(false);
+                      setChangePwdError(null);
+                      setChangePwdSuccess(null);
+                    }}
+                    className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    id="save-new-password-btn"
+                    type="submit"
+                    className="px-4 py-1.5 rounded bg-[#00FFB4] hover:brightness-110 text-black font-mono font-bold text-xs uppercase transition-all shadow-[0_0_15px_rgba(0,255,180,0.25)]"
+                  >
+                    Save Password
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>
