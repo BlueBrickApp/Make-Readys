@@ -1395,14 +1395,17 @@ class OfflineDB {
     this.notifyListeners();
   }
 
-  // Create New Unit for Turnover
-  public async createUnit(unitData: Omit<Unit, 'id' | 'last_updated'>, author: TechnicianUser): Promise<Unit> {
+  // Create New Unit for Turnover (Restricted to Maintenance Supervisor)
+  public async createUnit(unitData: Omit<Unit, 'id' | 'last_updated'>, author?: TechnicianUser): Promise<Unit> {
+    if (author && author.role !== 'Maintenance Supervisor') {
+      throw new Error('Access Denied: Only Maintenance Supervisors can create new units.');
+    }
     const allTechs = await this.getTechnicians();
     const assignedTechObj = allTechs.find(t => t.id === unitData.assigned_technician_id);
 
     const newUnit: Unit = {
       ...unitData,
-      assigned_tech: unitData.assigned_tech || assignedTechObj?.name || author.name,
+      assigned_tech: unitData.assigned_tech || assignedTechObj?.name || (author ? author.name : 'Supervisor'),
       id: `unit-${Date.now()}`,
       last_updated: Date.now()
     };
@@ -1644,8 +1647,11 @@ class OfflineDB {
     };
   }
 
-  // Delete an individual unit and its related records from local store and Firestore
-  public async deleteUnit(unitId: string): Promise<void> {
+  // Delete an individual unit and its related records from local store and Firestore (Restricted to Maintenance Supervisor)
+  public async deleteUnit(unitId: string, author?: TechnicianUser): Promise<void> {
+    if (author && author.role !== 'Maintenance Supervisor') {
+      throw new Error('Access Denied: Only Maintenance Supervisors can delete units.');
+    }
     const unit = await this.getUnitById(unitId);
     if (!unit) return;
 
@@ -1675,10 +1681,10 @@ class OfflineDB {
       unit_id: unitId,
       unit_number: unit.unit_number,
       timestamp: Date.now(),
-      author_name: 'Supervisor',
+      author_name: author ? author.name : 'Maintenance Supervisor',
       author_role: 'Maintenance Supervisor',
       action_type: 'unit_deleted',
-      message: `Unit #${unit.unit_number} deleted from system.`,
+      message: `Unit #${unit.unit_number} removed from turnover pipeline by ${author ? author.name : 'Supervisor'}.`,
       synced: true
     };
     await this.putInStore('field_logs', log);

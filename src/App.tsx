@@ -33,6 +33,7 @@ import {
   TurnoverStage 
 } from './types';
 import { offlineDB, ACTIVE_TECHNICIANS, ACTIVE_VENDORS } from './services/db';
+import { soundManager } from './services/audio';
 
 export default function App() {
   // Active User Profile (Defaults to Field Tech Carlos Mendez)
@@ -199,16 +200,24 @@ export default function App() {
     await loadData();
   };
 
-  // Handler: Create Unit
+  // Handler: Create Unit (Restricted to Maintenance Supervisor)
   const handleCreateUnit = async (unitData: Omit<Unit, 'id' | 'last_updated'>) => {
+    if (currentUser.role !== 'Maintenance Supervisor') {
+      soundManager.playAlert();
+      return;
+    }
     const newUnit = await offlineDB.createUnit(unitData, currentUser);
     setSelectedUnitId(newUnit.id);
     await loadData();
   };
 
-  // Handler: Delete Unit
+  // Handler: Delete Unit (Restricted to Maintenance Supervisor)
   const handleDeleteUnit = async (unitId: string) => {
-    await offlineDB.deleteUnit(unitId);
+    if (currentUser.role !== 'Maintenance Supervisor') {
+      soundManager.playAlert();
+      return;
+    }
+    await offlineDB.deleteUnit(unitId, currentUser);
     if (selectedUnitId === unitId) {
       setSelectedUnitId(null);
     }
@@ -433,6 +442,7 @@ export default function App() {
         onClose={() => setIsNewUnitModalOpen(false)}
         currentUser={currentUser}
         technicians={technicians}
+        onSwitchToSupervisor={handleSwitchToSupervisor}
         onCreateUnit={handleCreateUnit}
       />
 

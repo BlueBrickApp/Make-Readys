@@ -14,7 +14,8 @@ import {
   Trash2,
   PlusCircle,
   Building,
-  RotateCcw
+  RotateCcw,
+  Lock
 } from 'lucide-react';
 import { 
   Unit, 
@@ -81,6 +82,9 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterFloorPlan, setFilterFloorPlan] = useState<string>('all');
+  const [confirmDeleteUnitId, setConfirmDeleteUnitId] = useState<string | null>(null);
+
+  const isSupervisor = currentUser.role === 'Maintenance Supervisor';
 
   const filteredUnits = units.filter(u => {
     if (!u) return false;
@@ -194,16 +198,24 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
             {onOpenNewUnit && (
-              <button
-                onClick={() => {
-                  soundManager.playClick();
-                  onOpenNewUnit();
-                }}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#00FFB4] text-black font-bold text-xs tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-[0_0_20px_rgba(0,255,180,0.3)]"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>+ REGISTER FIRST UNIT</span>
-              </button>
+              isSupervisor ? (
+                <button
+                  id="zero-state-register-unit-btn"
+                  onClick={() => {
+                    soundManager.playClick();
+                    onOpenNewUnit();
+                  }}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-[#00FFB4] text-black font-bold text-xs tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-[0_0_20px_rgba(0,255,180,0.3)]"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>+ REGISTER FIRST UNIT</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900/90 border border-amber-500/40 text-amber-300 font-mono text-xs">
+                  <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Unit registration is restricted to Maintenance Supervisor</span>
+                </div>
+              )
             )}
             <button
               onClick={async () => {
@@ -308,24 +320,60 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
                                 </span>
                               )}
 
-                              {/* Delete Unit Button */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  soundManager.playClick();
-                                  if (confirm(`Delete unit #${unit.unit_number} and all associated trade checklists?`)) {
-                                    if (onDeleteUnit) {
-                                      onDeleteUnit(unit.id);
-                                    } else {
-                                      offlineDB.deleteUnit(unit.id);
-                                    }
-                                  }
-                                }}
-                                title={`Delete unit #${unit.unit_number}`}
-                                className="p-1 rounded text-slate-500 hover:text-[#FF3366] hover:bg-slate-800 transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {/* Delete Unit Button - Restricted strictly to Maintenance Supervisor */}
+                              {isSupervisor && (
+                                <div className="relative">
+                                  {confirmDeleteUnitId === unit.id ? (
+                                    <div 
+                                      className="flex items-center gap-1.5 bg-red-950/95 border border-red-500/80 rounded px-2 py-0.5 z-20 shadow-xl"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <span className="text-[10px] font-mono text-red-200 font-bold">Remove #{unit.unit_number}?</span>
+                                      <button
+                                        id={`confirm-delete-unit-${unit.id}`}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          soundManager.playClick();
+                                          setConfirmDeleteUnitId(null);
+                                          if (onDeleteUnit) {
+                                            onDeleteUnit(unit.id);
+                                          } else {
+                                            offlineDB.deleteUnit(unit.id, currentUser);
+                                          }
+                                        }}
+                                        className="px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white text-[9px] font-mono font-bold"
+                                      >
+                                        Yes
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          soundManager.playClick();
+                                          setConfirmDeleteUnitId(null);
+                                        }}
+                                        className="px-1 py-0.5 text-slate-400 hover:text-white text-[9px]"
+                                      >
+                                        No
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      id={`delete-unit-btn-${unit.id}`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        soundManager.playClick();
+                                        setConfirmDeleteUnitId(unit.id);
+                                      }}
+                                      title={`Delete unit #${unit.unit_number} (Maintenance Supervisor Authorization)`}
+                                      className="p-1 rounded text-slate-500 hover:text-[#FF3366] hover:bg-slate-800 transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
 
