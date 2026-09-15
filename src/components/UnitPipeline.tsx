@@ -15,7 +15,8 @@ import {
   PlusCircle,
   Building,
   RotateCcw,
-  Lock
+  Lock,
+  X
 } from 'lucide-react';
 import { 
   Unit, 
@@ -85,6 +86,7 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
   const [confirmDeleteUnitId, setConfirmDeleteUnitId] = useState<string | null>(null);
   const [deletePin, setDeletePin] = useState('');
   const [deletePinError, setDeletePinError] = useState(false);
+  const [deleteNotice, setDeleteNotice] = useState<string | null>(null);
 
   const isSupervisor = currentUser.role === 'Maintenance Supervisor';
 
@@ -96,12 +98,36 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
     return valid.includes(trimmed);
   };
 
+  const handleExecuteDelete = async (unit: Unit) => {
+    soundManager.playClick();
+    setConfirmDeleteUnitId(null);
+    setDeletePin('');
+    setDeletePinError(false);
+
+    // CRITICAL: Clear search filter so remaining units are immediately visible,
+    // preventing the false impression that all units were deleted.
+    setSearchQuery('');
+    setFilterFloorPlan('all');
+
+    if (onDeleteUnit) {
+      await onDeleteUnit(unit.id);
+    } else {
+      await offlineDB.deleteUnit(unit.id, currentUser);
+    }
+
+    const remainingCount = Math.max(0, units.filter(u => u.id !== unit.id).length);
+    setDeleteNotice(`Unit #${unit.unit_number} deleted successfully. ${remainingCount} unit${remainingCount === 1 ? '' : 's'} remain in the pipeline.`);
+    setTimeout(() => {
+      setDeleteNotice(null);
+    }, 6000);
+  };
+
   const filteredUnits = units.filter(u => {
     if (!u) return false;
-    const q = (searchQuery || '').toLowerCase();
+    const q = (searchQuery || '').toLowerCase().trim();
     const unitNum = String(u.unit_number || '').toLowerCase();
     const bldg = String(u.building || '').toLowerCase();
-    const matchesSearch = unitNum.includes(q) || bldg.includes(q);
+    const matchesSearch = !q || unitNum.includes(q) || bldg.includes(q);
     const matchesFloorPlan = filterFloorPlan === 'all' || u.floor_plan === filterFloorPlan;
     return matchesSearch && matchesFloorPlan;
   });
@@ -153,7 +179,9 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
               PIPELINE WORKFLOW
             </h2>
             <span className="px-2 py-0.5 rounded text-xs font-mono font-semibold bg-[#00FFB4]/10 text-[#00FFB4] border border-[#00FFB4]/30">
-              {filteredUnits.length} UNITS TRACKED
+              {searchQuery || filterFloorPlan !== 'all' 
+                ? `${filteredUnits.length} OF ${units.length} UNITS` 
+                : `${units.length} UNITS TRACKED`}
             </span>
           </div>
           <p className="text-xs text-slate-400 font-mono mt-0.5">
@@ -163,15 +191,29 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
 
         {/* Filter controls */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[200px]">
+          <div className="relative min-w-[220px]">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
+              id="pipeline-search-input"
               type="text"
               placeholder="Search unit # or bldg..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-[#00FFB4] transition-colors"
+              className="w-full pl-9 pr-8 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-[#00FFB4] transition-colors"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  soundManager.playClick();
+                  setSearchQuery('');
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white rounded-full hover:bg-slate-800 transition-colors"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-700 px-2.5 py-1.5 rounded-lg text-xs">
@@ -191,6 +233,81 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Delete Success Notice Banner */}
+      {deleteNotice && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[#00FFB4]/10 border border-[#00FFB4]/30 text-[#00FFB4] text-xs font-mono animate-fadeIn shadow-lg">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-[#00FFB4] shrink-0" />
+            <span>{deleteNotice}</span>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setDeleteNotice(null)}
+            className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Active Filter Bar */}
+      {(searchQuery || filterFloorPlan !== 'all') && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 text-xs font-mono">
+          <div className="flex items-center gap-2 text-slate-300">
+            <Search className="w-3.5 h-3.5 text-[#00FFB4]" />
+            <span>
+              Active filter: {searchQuery && <span>Search: <strong className="text-white">"{searchQuery}"</strong></span>}
+              {searchQuery && filterFloorPlan !== 'all' && ' • '}
+              {filterFloorPlan !== 'all' && <span>Floor plan: <strong className="text-[#00FFB4]">{filterFloorPlan}</strong></span>}
+              <span className="text-slate-400 ml-2 font-normal">
+                ({filteredUnits.length} of {units.length} units match)
+              </span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setSearchQuery('');
+              setFilterFloorPlan('all');
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[#00FFB4] hover:text-white text-xs font-semibold border border-slate-700 transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Clear Filter (Show All {units.length} Units)</span>
+          </button>
+        </div>
+      )}
+
+      {/* When units exist in DB but 0 match the search query */}
+      {units.length > 0 && filteredUnits.length === 0 && (
+        <div className="p-8 rounded-xl bg-slate-900/80 border border-dashed border-amber-500/40 text-center space-y-3">
+          <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+            <Search className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-['Chakra_Petch'] font-bold text-white">
+              NO UNITS MATCH "{searchQuery || filterFloorPlan}"
+            </p>
+            <p className="text-xs text-slate-400 font-mono">
+              You have {units.length} active unit{units.length === 1 ? '' : 's'} registered in your database. None match your current search query.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              soundManager.playClick();
+              setSearchQuery('');
+              setFilterFloorPlan('all');
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#00FFB4] text-black font-bold text-xs font-mono hover:brightness-110 active:scale-95 transition-all shadow-[0_0_15px_rgba(0,255,180,0.2)]"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>Clear Search & View All {units.length} Units</span>
+          </button>
+        </div>
+      )}
 
       {/* Zero State if no units exist in database */}
       {units.length === 0 ? (
@@ -268,8 +385,17 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
                 {/* Column Cards Container */}
                 <div className="p-3 flex-1 space-y-3 overflow-y-auto">
                   {colUnits.length === 0 ? (
-                    <div className="p-6 text-center border border-dashed border-slate-800 rounded-lg text-slate-500 text-xs font-mono">
-                      No units in {col.title}
+                    <div className="p-6 text-center border border-dashed border-slate-800 rounded-lg text-slate-500 text-xs font-mono space-y-1">
+                      <div>{searchQuery ? `No units match "${searchQuery}" in ${col.title}` : `No units in ${col.title}`}</div>
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="text-[10px] text-[#00FFB4] underline hover:text-white"
+                        >
+                          Clear search filter
+                        </button>
+                      )}
                     </div>
                   ) : (
                     colUnits.map((unit) => {
@@ -338,15 +464,7 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            soundManager.playClick();
-                                            setConfirmDeleteUnitId(null);
-                                            setDeletePin('');
-                                            setDeletePinError(false);
-                                            if (onDeleteUnit) {
-                                              onDeleteUnit(unit.id);
-                                            } else {
-                                              offlineDB.deleteUnit(unit.id, currentUser);
-                                            }
+                                            handleExecuteDelete(unit);
                                           }}
                                           className="px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white text-[9px] font-mono font-bold"
                                         >
@@ -379,11 +497,7 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
                                           onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
                                               if (checkSupervisorPin(deletePin)) {
-                                                soundManager.playClick();
-                                                setConfirmDeleteUnitId(null);
-                                                setDeletePin('');
-                                                if (onDeleteUnit) onDeleteUnit(unit.id);
-                                                else offlineDB.deleteUnit(unit.id, currentUser);
+                                                handleExecuteDelete(unit);
                                               } else {
                                                 soundManager.playAlert();
                                                 setDeletePinError(true);
@@ -399,11 +513,7 @@ export const UnitPipeline: React.FC<UnitPipelineProps> = ({
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             if (checkSupervisorPin(deletePin)) {
-                                              soundManager.playClick();
-                                              setConfirmDeleteUnitId(null);
-                                              setDeletePin('');
-                                              if (onDeleteUnit) onDeleteUnit(unit.id);
-                                              else offlineDB.deleteUnit(unit.id, currentUser);
+                                              handleExecuteDelete(unit);
                                             } else {
                                               soundManager.playAlert();
                                               setDeletePinError(true);

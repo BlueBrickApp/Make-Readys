@@ -406,8 +406,11 @@ class OfflineDB {
             await this.putInStore('units', unit);
             hasChanges = true;
           } else if (change.type === 'removed') {
-            await this.deleteFromStore('units', unit.id);
-            hasChanges = true;
+            const unitId = change.doc.id || (unit && unit.id);
+            if (unitId) {
+              await this.deleteFromStore('units', unitId);
+              hasChanges = true;
+            }
           }
         }
         if (hasChanges) this.notifyListeners();
@@ -425,8 +428,11 @@ class OfflineDB {
             await this.putInStore('checklists', chk);
             hasChanges = true;
           } else if (change.type === 'removed') {
-            await this.deleteFromStore('checklists', chk.id);
-            hasChanges = true;
+            const chkId = change.doc.id || (chk && chk.id);
+            if (chkId) {
+              await this.deleteFromStore('checklists', chkId);
+              hasChanges = true;
+            }
           }
         }
         if (hasChanges) this.notifyListeners();
@@ -444,8 +450,11 @@ class OfflineDB {
             await this.putInStore('work_orders', wo);
             hasChanges = true;
           } else if (change.type === 'removed') {
-            await this.deleteFromStore('work_orders', wo.id);
-            hasChanges = true;
+            const woId = change.doc.id || (wo && wo.id);
+            if (woId) {
+              await this.deleteFromStore('work_orders', woId);
+              hasChanges = true;
+            }
           }
         }
         if (hasChanges) this.notifyListeners();
