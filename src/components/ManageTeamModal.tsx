@@ -10,7 +10,8 @@ import {
   ShieldCheck, 
   AlertCircle,
   HardHat,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { TechnicianUser } from '../types';
 import { soundManager } from '../services/audio';
@@ -446,15 +447,50 @@ export const ManageTeamModal: React.FC<ManageTeamModalProps> = ({
                     </div>
 
                     {/* Delete / Remove Action */}
-                    <button
-                      type="button"
-                      disabled={isDeleting || technicians.length <= 1}
-                      onClick={() => handleDelete(tech)}
-                      title={`Remove ${tech.name} from team`}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-950/40 transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {pendingDeleteTech?.id === tech.id ? (
+                      <div className="flex flex-col items-end gap-1.5 shrink-0 animate-fadeIn">
+                        <span className="text-[10px] text-red-400 font-mono font-medium">
+                          Remove {tech.name.split(' ')[0]}?
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={() => confirmDelete(tech)}
+                            className="px-2.5 py-1 rounded-md bg-red-600 hover:bg-red-500 text-white font-mono text-[10px] font-bold transition-all shadow flex items-center gap-1"
+                          >
+                            {isDeleting ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3 h-3" />
+                            )}
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={() => setPendingDeleteTech(null)}
+                            className="px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[10px] transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isDeleting || technicians.length <= 1}
+                        onClick={() => initiateDelete(tech)}
+                        title={
+                          technicians.length <= 1 
+                            ? "Must keep at least 1 technician" 
+                            : `Remove ${tech.name} from team`
+                        }
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-950/40 transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 );
               })}
