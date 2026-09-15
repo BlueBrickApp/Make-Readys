@@ -1751,6 +1751,19 @@ class OfflineDB {
     this.notifyListeners();
   }
 
+  public async updateVendor(vendor: Vendor): Promise<void> {
+    await this.putInStore('vendors', vendor);
+    await this.pushToFirestore('vendors', vendor.id, vendor);
+    const exists = ACTIVE_VENDORS.some(v => v.id === vendor.id);
+    if (exists) {
+      ACTIVE_VENDORS = ACTIVE_VENDORS.map(v => v.id === vendor.id ? vendor : v);
+    } else {
+      ACTIVE_VENDORS = [...ACTIVE_VENDORS, vendor];
+    }
+    localStorage.setItem('utt_vendors', JSON.stringify(ACTIVE_VENDORS));
+    this.notifyListeners();
+  }
+
   public async deleteVendor(id: string): Promise<void> {
     await this.deleteFromStore('vendors', id);
     await this.deleteFromFirestore('vendors', id);

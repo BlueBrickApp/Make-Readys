@@ -267,6 +267,13 @@ export default function App() {
     setVendors(updated);
   };
 
+  // Handler: Update existing vendor details
+  const handleUpdateVendor = async (vendor: Vendor) => {
+    await offlineDB.updateVendor(vendor);
+    const updated = await offlineDB.getVendors();
+    setVendors(updated);
+  };
+
   // Handler: Delete vendor from directory
   const handleDeleteVendor = async (id: string) => {
     await offlineDB.deleteVendor(id);
@@ -448,6 +455,7 @@ export default function App() {
         onClose={() => setIsManageVendorsModalOpen(false)}
         vendors={vendors}
         onAddVendor={handleAddVendor}
+        onUpdateVendor={handleUpdateVendor}
         onDeleteVendor={handleDeleteVendor}
       />
 
