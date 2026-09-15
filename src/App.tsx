@@ -200,23 +200,15 @@ export default function App() {
     await loadData();
   };
 
-  // Handler: Create Unit (Restricted to Maintenance Supervisor)
+  // Handler: Create Unit
   const handleCreateUnit = async (unitData: Omit<Unit, 'id' | 'last_updated'>) => {
-    if (currentUser.role !== 'Maintenance Supervisor') {
-      soundManager.playAlert();
-      return;
-    }
     const newUnit = await offlineDB.createUnit(unitData, currentUser);
     setSelectedUnitId(newUnit.id);
     await loadData();
   };
 
-  // Handler: Delete Unit (Restricted to Maintenance Supervisor)
+  // Handler: Delete Unit
   const handleDeleteUnit = async (unitId: string) => {
-    if (currentUser.role !== 'Maintenance Supervisor') {
-      soundManager.playAlert();
-      return;
-    }
     await offlineDB.deleteUnit(unitId, currentUser);
     if (selectedUnitId === unitId) {
       setSelectedUnitId(null);

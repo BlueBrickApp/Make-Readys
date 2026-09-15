@@ -273,31 +273,16 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* New Unit Intake CTA - Only Maintenance Supervisor has authorization */}
-          {currentUser.role === 'Maintenance Supervisor' ? (
-            <button
-              id="header-new-unit-btn"
-              onClick={() => { soundManager.playClick(); onOpenNewUnit(); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#00FFB4] text-black font-semibold text-xs tracking-wide hover:brightness-110 active:scale-95 transition-all shadow-[0_0_15px_rgba(0,255,180,0.35)]"
-              title="Add New Unit Intake (Maintenance Supervisor Authorization)"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>NEW UNIT</span>
-            </button>
-          ) : (
-            <button
-              id="header-new-unit-btn-locked"
-              onClick={() => { soundManager.playAlert(); onOpenNewUnit(); }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-900 border border-slate-700/70 hover:border-amber-500/40 text-slate-400 hover:text-amber-300 font-mono text-xs transition-all shadow-sm group"
-              title="New Unit Intake: Restricted exclusively to Maintenance Supervisor"
-            >
-              <Lock className="w-3.5 h-3.5 text-amber-400/80 group-hover:scale-110 transition-transform" />
-              <span className="hidden sm:inline">NEW UNIT</span>
-              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-950/60 text-amber-400 border border-amber-500/30 font-bold">
-                SUPERVISOR
-              </span>
-            </button>
-          )}
+          {/* New Unit Intake CTA */}
+          <button
+            id="header-new-unit-btn"
+            onClick={() => { soundManager.playClick(); onOpenNewUnit(); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#00FFB4] text-black font-semibold text-xs tracking-wide hover:brightness-110 active:scale-95 transition-all shadow-[0_0_15px_rgba(0,255,180,0.35)]"
+            title="Add New Unit Intake"
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>NEW UNIT</span>
+          </button>
 
           {/* User Role Switcher Dropdown */}
           <div className="relative">

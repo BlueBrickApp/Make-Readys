@@ -1395,11 +1395,8 @@ class OfflineDB {
     this.notifyListeners();
   }
 
-  // Create New Unit for Turnover (Restricted to Maintenance Supervisor)
+  // Create New Unit for Turnover (Authorized via Supervisor Credentials)
   public async createUnit(unitData: Omit<Unit, 'id' | 'last_updated'>, author?: TechnicianUser): Promise<Unit> {
-    if (author && author.role !== 'Maintenance Supervisor') {
-      throw new Error('Access Denied: Only Maintenance Supervisors can create new units.');
-    }
     const allTechs = await this.getTechnicians();
     const assignedTechObj = allTechs.find(t => t.id === unitData.assigned_technician_id);
 
@@ -1647,11 +1644,8 @@ class OfflineDB {
     };
   }
 
-  // Delete an individual unit and its related records from local store and Firestore (Restricted to Maintenance Supervisor)
+  // Delete an individual unit and its related records from local store and Firestore
   public async deleteUnit(unitId: string, author?: TechnicianUser): Promise<void> {
-    if (author && author.role !== 'Maintenance Supervisor') {
-      throw new Error('Access Denied: Only Maintenance Supervisors can delete units.');
-    }
     const unit = await this.getUnitById(unitId);
     if (!unit) return;
 

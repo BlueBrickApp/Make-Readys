@@ -8,8 +8,11 @@ import {
   PlusCircle, 
   CheckCircle2,
   Lock,
-  ShieldAlert,
-  ShieldCheck
+  Eye,
+  EyeOff,
+  KeyRound,
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 import { Unit, TechnicianUser } from '../types';
 import { ACTIVE_TECHNICIANS } from '../services/db';
@@ -29,7 +32,6 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
   onClose,
   currentUser,
   technicians,
-  onSwitchToSupervisor,
   onCreateUnit
 }) => {
   const [unitNumber, setUnitNumber] = useState('');
@@ -42,97 +44,47 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
     new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString().split('T')[0]
   );
   const [notes, setNotes] = useState('');
+  
+  // Supervisor Password / Authorization State
+  const [supervisorPassword, setSupervisorPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const isSupervisor = currentUser.role === 'Maintenance Supervisor';
+  const isCurrentSupervisor = currentUser.role === 'Maintenance Supervisor';
 
-  // If user is not Maintenance Supervisor, block intake and show authorization requirement
-  if (!isSupervisor) {
-    return (
-      <div id="new-unit-unauthorized-modal" className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-        <div className="relative w-full max-w-md bg-[#0D131F] border border-amber-500/40 rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(245,158,11,0.15)] animate-scaleUp">
-          {/* Header */}
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-amber-950/20">
-            <div className="flex items-center gap-2 text-amber-400 font-['Chakra_Petch'] font-bold text-sm tracking-wide">
-              <ShieldAlert className="w-5 h-5 shrink-0" />
-              <span>SUPERVISOR AUTHORIZATION REQUIRED</span>
-            </div>
-            <button
-              onClick={() => {
-                soundManager.playClick();
-                onClose();
-              }}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+  const checkSupervisorPassword = (pwd: string): boolean => {
+    const trimmed = pwd.trim().toLowerCase();
+    const storedPin = (localStorage.getItem('utt_supervisor_pin') || '').trim().toLowerCase();
+    const validPasswords = ['1234', 'supervisor', 'supervisor123', 'super123', 'admin'];
+    if (storedPin) {
+      validPasswords.push(storedPin);
+    }
+    return validPasswords.includes(trimmed);
+  };
 
-          {/* Body Content */}
-          <div className="p-6 space-y-4 text-center">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.2)]">
-              <Lock className="w-7 h-7" />
-            </div>
-
-            <div className="space-y-1.5">
-              <h4 className="font-['Chakra_Petch'] font-bold text-white text-base">
-                Unit Intake Restricted
-              </h4>
-              <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
-                Only the <strong className="text-amber-300">Maintenance Supervisor</strong> has permission to register new units or remove units from the turnover pipeline.
-              </p>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 text-left space-y-1 text-xs font-mono">
-              <div className="text-slate-500 text-[10px] uppercase">Active Operator:</div>
-              <div className="flex items-center justify-between text-slate-200">
-                <span className="font-bold text-white">{currentUser.name}</span>
-                <span className="px-2 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700 text-[10px]">
-                  {currentUser.role}
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
-              {onSwitchToSupervisor && (
-                <button
-                  id="switch-to-supervisor-btn"
-                  type="button"
-                  onClick={() => {
-                    soundManager.playSyncSuccess();
-                    onSwitchToSupervisor();
-                  }}
-                  className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#00FFB4] text-black font-mono font-bold text-xs uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-[0_0_15px_rgba(0,255,180,0.3)]"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>SWITCH TO SUPERVISOR</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  soundManager.playClick();
-                  onClose();
-                }}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const isPasswordValid = checkSupervisorPassword(supervisorPassword);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!unitNumber.trim()) return;
+    setAuthError(null);
+
+    if (!unitNumber.trim()) {
+      setAuthError('Please enter a valid Unit Number.');
+      return;
+    }
+
+    // Enforce Supervisor Password Check
+    if (!checkSupervisorPassword(supervisorPassword)) {
+      soundManager.playAlert();
+      setAuthError('Supervisor password required. Enter authorized password (e.g. 1234 or supervisor123).');
+      return;
+    }
 
     setIsSubmitting(true);
-    soundManager.playClick();
+    soundManager.playSyncSuccess();
     try {
       await onCreateUnit({
         unit_number: unitNumber.trim(),
@@ -146,17 +98,20 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
         notes: notes.trim() || 'Unit turnover intake initiated.'
       });
       onClose();
+    } catch (err) {
+      console.error(err);
+      setAuthError('Failed to create unit. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="relative w-full max-w-lg bg-[#0D131F] border border-slate-700 rounded-2xl overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-[#0D131F] border border-slate-700 rounded-2xl overflow-hidden shadow-2xl my-auto animate-scaleUp">
         
         {/* Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-lg bg-[#00FFB4]/15 text-[#00FFB4] border border-[#00FFB4]/30">
               <PlusCircle className="w-5 h-5" />
@@ -176,7 +131,7 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
               soundManager.playClick();
               onClose();
             }}
-            className="p-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-400 hover:text-white"
+            className="p-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-400 hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -185,15 +140,22 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs font-sans">
           
+          {/* Unit Number & Floor Plan */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="block text-slate-300 font-mono text-[11px]">Unit Number *</label>
+              <label className="block text-slate-300 font-mono text-[11px] font-semibold">
+                Unit Number *
+              </label>
               <input
+                id="input-unit-number"
                 type="text"
                 required
                 placeholder="e.g. 504"
                 value={unitNumber}
-                onChange={(e) => setUnitNumber(e.target.value)}
+                onChange={(e) => {
+                  setUnitNumber(e.target.value);
+                  if (authError) setAuthError(null);
+                }}
                 className="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-['Chakra_Petch'] font-bold text-base focus:outline-none focus:border-[#00FFB4]"
               />
             </div>
@@ -201,6 +163,7 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
             <div className="space-y-1">
               <label className="block text-slate-300 font-mono text-[11px]">Floor Plan *</label>
               <select
+                id="select-floor-plan"
                 value={floorPlan}
                 onChange={(e) => setFloorPlan(e.target.value as Unit['floor_plan'])}
                 className="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 focus:outline-none focus:border-[#00FFB4] cursor-pointer"
@@ -214,10 +177,12 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
             </div>
           </div>
 
+          {/* Building & Floor */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="block text-slate-300 font-mono text-[11px]">Building</label>
               <input
+                id="input-building"
                 type="text"
                 value={building}
                 onChange={(e) => setBuilding(e.target.value)}
@@ -228,6 +193,7 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
             <div className="space-y-1">
               <label className="block text-slate-300 font-mono text-[11px]">Floor Level</label>
               <input
+                id="input-floor-level"
                 type="number"
                 min={1}
                 max={20}
@@ -238,10 +204,12 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
             </div>
           </div>
 
+          {/* Dates */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="block text-slate-300 font-mono text-[11px]">Move-Out Date</label>
               <input
+                id="input-move-out-date"
                 type="date"
                 value={moveOutDate}
                 onChange={(e) => setMoveOutDate(e.target.value)}
@@ -252,6 +220,7 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
             <div className="space-y-1">
               <label className="block text-slate-300 font-mono text-[11px]">Target Rent-Ready Date</label>
               <input
+                id="input-target-ready-date"
                 type="date"
                 value={targetReadyDate}
                 onChange={(e) => setTargetReadyDate(e.target.value)}
@@ -260,9 +229,11 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
             </div>
           </div>
 
+          {/* Assigned Tech Lead */}
           <div className="space-y-1">
             <label className="block text-slate-300 font-mono text-[11px]">Assigned Turn Tech Lead</label>
             <select
+              id="select-assigned-tech"
               value={assignedTechId}
               onChange={(e) => setAssignedTechId(e.target.value)}
               className="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 focus:outline-none focus:border-[#00FFB4]"
@@ -275,9 +246,11 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
             </select>
           </div>
 
+          {/* Initial Notes */}
           <div className="space-y-1">
             <label className="block text-slate-300 font-mono text-[11px]">Initial Move-Out Notes</label>
             <textarea
+              id="input-unit-notes"
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -286,20 +259,118 @@ export const NewUnitModal: React.FC<NewUnitModalProps> = ({
             />
           </div>
 
-          <div className="pt-2 flex justify-end gap-2">
+          {/* Supervisor Security Password / Authorization Box */}
+          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-amber-500/30 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-amber-300 font-mono text-xs font-bold">
+                <Lock className="w-3.5 h-3.5 text-amber-400" />
+                <span>SUPERVISOR SECURITY PASSWORD *</span>
+              </div>
+              {isPasswordValid ? (
+                <span className="flex items-center gap-1 text-[10px] font-mono text-[#00FFB4] bg-[#00FFB4]/10 px-2 py-0.5 rounded border border-[#00FFB4]/30">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>AUTHORIZED</span>
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono text-slate-400">
+                  PIN: <code className="text-amber-300">1234</code>
+                </span>
+              )}
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                <KeyRound className="w-4 h-4 text-slate-400" />
+              </div>
+              <input
+                id="supervisor-password-input"
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={supervisorPassword}
+                onChange={(e) => {
+                  setSupervisorPassword(e.target.value);
+                  if (authError) setAuthError(null);
+                }}
+                placeholder="Enter Supervisor password (e.g. 1234)"
+                className={`w-full pl-9 pr-20 py-2 rounded-lg bg-slate-900 border text-xs font-mono transition-colors focus:outline-none ${
+                  isPasswordValid 
+                    ? 'border-[#00FFB4] text-[#00FFB4]' 
+                    : 'border-slate-700 text-slate-100 focus:border-amber-400'
+                }`}
+              />
+              <div className="absolute inset-y-0 right-0 pr-2 flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="p-1 text-slate-400 hover:text-white rounded"
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+                {!isPasswordValid && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSupervisorPassword('1234');
+                      if (authError) setAuthError(null);
+                    }}
+                    className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-800 hover:bg-slate-700 text-amber-300 rounded border border-slate-700"
+                    title="Fill default supervisor password (1234)"
+                  >
+                    1234
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {authError && (
+              <div className="flex items-center gap-1.5 text-[11px] text-red-400 font-mono bg-red-950/40 p-2 rounded border border-red-500/30 animate-shake">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-0.5">
+              <span>Required to confirm intake authorization</span>
+              {isCurrentSupervisor && (
+                <span className="text-[#00FFB4]">
+                  Active Operator: {currentUser.name} (Supervisor)
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="pt-2 flex items-center justify-end gap-2.5">
             <button
+              id="cancel-new-unit-btn"
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white"
+              onClick={() => {
+                soundManager.playClick();
+                onClose();
+              }}
+              className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs transition-colors"
             >
               Cancel
             </button>
             <button
+              id="submit-new-unit-btn"
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-lg bg-[#00FFB4] text-black font-bold font-mono uppercase hover:brightness-110"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#00FFB4] text-black font-bold font-mono text-xs uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-[0_0_20px_rgba(0,255,180,0.3)] disabled:opacity-50"
             >
-              {isSubmitting ? 'Creating...' : 'Initialize Turnover'}
+              {isSubmitting ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  <span>INITIALIZING...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>INITIALIZE TURNOVER</span>
+                </>
+              )}
             </button>
           </div>
 
